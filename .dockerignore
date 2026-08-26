@@ -1,0 +1,8 @@
+.git
+.github
+.firecrawl
+**/bin
+**/obj
+**/node_modules
+src/Jackett.Common/Content/UI
+src/Jackett.IntegrationTests
