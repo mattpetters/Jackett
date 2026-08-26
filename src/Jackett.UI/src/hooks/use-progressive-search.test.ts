@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { mergeResults } from '@/hooks/use-progressive-search'
+import { mergeResults, TaskLimiter } from '@/hooks/use-progressive-search'
 import type { SearchResult } from '@/types/jackett'
 
 function release(overrides: Partial<SearchResult>): SearchResult {
@@ -36,5 +36,48 @@ describe('mergeResults', () => {
 
     expect(mergeResults(current, incoming)).toHaveLength(2)
     expect(mergeResults(current, incoming).map((item) => item.Tracker)).toContain('Another indexer')
+  })
+})
+
+describe('TaskLimiter', () => {
+  it('shares a fixed concurrency budget across independent work', async () => {
+    const limiter = new TaskLimiter(2)
+    const controller = new AbortController()
+    let active = 0
+    let peak = 0
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+
+    const tasks = Array.from({ length: 5 }, (_, index) =>
+      limiter.run(async () => {
+        active += 1
+        peak = Math.max(peak, active)
+        await gate
+        active -= 1
+        return index
+      }, controller.signal),
+    )
+
+    await Promise.resolve()
+    expect(peak).toBe(2)
+    release()
+    await expect(Promise.all(tasks)).resolves.toEqual([0, 1, 2, 3, 4])
+    expect(peak).toBe(2)
+  })
+
+  it('drops queued work when only that search is cancelled', async () => {
+    const limiter = new TaskLimiter(1)
+    const firstController = new AbortController()
+    const secondController = new AbortController()
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+
+    const first = limiter.run(async () => gate, firstController.signal)
+    const second = limiter.run(async () => 'never started', secondController.signal)
+    secondController.abort(new DOMException('Cancelled', 'AbortError'))
+
+    await expect(second).rejects.toMatchObject({ name: 'AbortError' })
+    release()
+    await expect(first).resolves.toBeUndefined()
   })
 })

@@ -53,6 +53,7 @@ function combineSignals(parent: AbortSignal, timeoutMs: number) {
   }, timeoutMs)
   const abortFromParent = () => controller.abort(parent.reason)
   parent.addEventListener('abort', abortFromParent, { once: true })
+  if (parent.aborted) abortFromParent()
 
   return {
     signal: controller.signal,

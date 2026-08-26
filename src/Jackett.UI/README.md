@@ -27,6 +27,8 @@ The production bundle is written to `../Jackett.Common/Content/UI` and included 
 - `/` focuses and selects the main release search from anywhere outside an editable field.
 - Arrow keys move through command-menu options, `Enter` runs one, and `Escape` closes the menu or blurs the main search.
 
+Searches run as independent in-memory sessions. Starting a new query does not cancel older work; the session rail and command menu can switch between them, cancel one, or remove settled results. All sessions share an eight-request concurrency budget so parallel searches remain responsive without overwhelming Jackett or its indexers.
+
 ## Component sources
 
 - The results table is adapted from [ShadTable](https://www.shad-table.dev/), built on TanStack Table.

@@ -17,6 +17,7 @@ import {
 import { CommandMenu } from '@/components/command-menu'
 import { ResultsTable } from '@/components/results-table'
 import { SearchFilters } from '@/components/search-filters'
+import { SearchSessions } from '@/components/search-sessions'
 import { TrackerProgress } from '@/components/tracker-progress'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -70,12 +71,12 @@ function App() {
   const progressive = useProgressiveSearch()
   const initialQuery = new URLSearchParams(window.location.search).get('q') || ''
   const [query, setQuery] = useState(initialQuery)
-  const [lastQuery, setLastQuery] = useState(initialQuery)
   const [selectedIndexerIds, setSelectedIndexerIds] = useState<Set<string>>(new Set())
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(new Set())
   const [mode, setMode] = useState<'live' | 'cache'>('live')
   const [validationMessage, setValidationMessage] = useState('')
   const [commandMenuOpen, setCommandMenuOpen] = useState(false)
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [recentSearches, setRecentSearches] = useState(() =>
     parseRecentSearches(localStorage.getItem(RECENT_SEARCH_STORAGE_KEY)),
   )
@@ -90,6 +91,20 @@ function App() {
 
   const indexers = useMemo(() => bootstrap.data?.indexers || [], [bootstrap.data?.indexers])
   const config = bootstrap.data?.config
+  const activeSession = progressive.sessions.find((session) => session.id === activeSessionId)
+    || progressive.sessions[0]
+    || null
+  const runningSessionCount = progressive.sessions.filter((session) => session.status === 'searching').length
+
+  useEffect(() => {
+    if (!progressive.sessions.length) {
+      setActiveSessionId(null)
+      return
+    }
+    if (!progressive.sessions.some((session) => session.id === activeSessionId)) {
+      setActiveSessionId(progressive.sessions[0].id)
+    }
+  }, [activeSessionId, progressive.sessions])
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark')
@@ -171,7 +186,6 @@ function App() {
 
     setValidationMessage('')
     setMode('live')
-    setLastQuery(cleanQuery)
     setRecentSearches((current) => {
       const next = addRecentSearch(current, cleanQuery)
       localStorage.setItem(RECENT_SEARCH_STORAGE_KEY, JSON.stringify(next))
@@ -181,12 +195,14 @@ function App() {
     url.searchParams.set('q', cleanQuery)
     window.history.replaceState({}, '', url)
     animatedSearchIcon.current?.startAnimation()
-    void progressive.search({
+    const sessionId = progressive.search({
       query: cleanQuery,
       indexers: selectedIndexers,
       categories: [...selectedCategoryIds],
       apiKey: config.api_key,
     })
+    setActiveSessionId(sessionId)
+    window.requestAnimationFrame(() => searchInput.current?.select())
   }
 
   useEffect(() => {
@@ -198,16 +214,15 @@ function App() {
   }, [config, selectedIndexers.length])
 
   useEffect(() => {
-    if (!progressive.isSearching) animatedSearchIcon.current?.stopAnimation()
-  }, [progressive.isSearching])
+    if (!runningSessionCount) animatedSearchIcon.current?.stopAnimation()
+  }, [runningSessionCount])
 
-  const elapsed = useElapsed(progressive.startedAt, progressive.finishedAt)
-  const failedCount = progressive.progress.filter((item) => item.state === 'failed' || item.state === 'timed-out').length
-  const completedCount = progressive.progress.filter((item) => item.state === 'complete').length
-  const displayedResults: SearchResult[] = mode === 'cache' ? cache.data || [] : progressive.results
+  const elapsed = useElapsed(activeSession?.startedAt || null, activeSession?.finishedAt || null)
+  const failedCount = activeSession?.progress.filter((item) => item.state === 'failed' || item.state === 'timed-out').length || 0
+  const completedCount = activeSession?.progress.filter((item) => item.state === 'complete').length || 0
+  const displayedResults: SearchResult[] = mode === 'cache' ? cache.data || [] : activeSession?.results || []
 
   async function showCache() {
-    progressive.cancel()
     const response = await cache.refetch()
     if (response.data) setMode('cache')
   }
@@ -252,20 +267,28 @@ function App() {
         open={commandMenuOpen}
         onOpenChange={setCommandMenuOpen}
         recentSearches={recentSearches}
+        sessions={progressive.sessions}
+        activeSessionId={activeSession?.id || null}
         selectedIndexerCount={selectedIndexers.length}
         selectedCategoryCount={selectedCategoryIds.size}
-        isSearching={progressive.isSearching}
+        isSearching={activeSession?.status === 'searching'}
         theme={theme}
         onSearch={(value) => {
           setQuery(value)
           runSearch(value)
+        }}
+        onSelectSession={(id) => {
+          setActiveSessionId(id)
+          setMode('live')
         }}
         onFocusSearch={focusReleaseSearch}
         onShowCache={() => void showCache()}
         onSelectAllIndexers={() => setSelectedIndexerIds(new Set(indexers.map((indexer) => indexer.id)))}
         onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
         onOpenAdmin={() => window.location.assign(getUiPath('Legacy'))}
-        onCancelSearch={progressive.cancel}
+        onCancelSearch={() => {
+          if (activeSession) progressive.cancel(activeSession.id)
+        }}
         onClearRecentSearches={clearRecentSearches}
       />
       <div className="min-h-screen lg:grid lg:grid-cols-[232px_minmax(0,1fr)]">
@@ -312,7 +335,8 @@ function App() {
                 <span className="font-semibold">Jackett</span>
               </div>
               <div className="hidden items-center gap-2 text-xs text-muted-foreground lg:flex">
-                <Waves className="size-3.5 text-primary" /> Progressive search enabled
+                <Waves className={cn('size-3.5 text-primary', runningSessionCount && 'animate-pulse')} />
+                {runningSessionCount ? `${runningSessionCount} parallel ${runningSessionCount === 1 ? 'search' : 'searches'} running` : 'Parallel search ready'}
               </div>
               <div className="flex items-center gap-2">
                 <Tooltip>
@@ -384,22 +408,33 @@ function App() {
                       selectedCategoryIds={selectedCategoryIds}
                       onCategoryIdsChange={setSelectedCategoryIds}
                     />
-                    {progressive.isSearching ? (
-                      <Button type="button" variant="secondary" className="h-10" onClick={progressive.cancel}><Square className="fill-current" /> Stop</Button>
-                    ) : (
-                      <Button type="submit" className="h-10 min-w-28 shadow-lg shadow-primary/15"><Search /> Search</Button>
-                    )}
+                    {activeSession?.status === 'searching' ? (
+                      <Button type="button" variant="secondary" className="h-10" onClick={() => progressive.cancel(activeSession.id)}><Square className="fill-current" /> Stop</Button>
+                    ) : null}
+                    <Button type="submit" className="h-10 min-w-28 shadow-lg shadow-primary/15"><Search /> Search</Button>
                   </div>
                 </div>
               </form>
               {validationMessage ? <p className="px-2 text-sm text-destructive">{validationMessage}</p> : null}
             </section>
 
-            {progressive.progress.length && mode === 'live' ? <TrackerProgress items={progressive.progress} /> : null}
+            <SearchSessions
+              sessions={progressive.sessions}
+              activeSessionId={activeSession?.id || null}
+              onSelect={(id) => {
+                setActiveSessionId(id)
+                setMode('live')
+              }}
+              onCancel={progressive.cancel}
+              onRemove={progressive.remove}
+              onClearSettled={progressive.clearSettled}
+            />
+
+            {activeSession?.progress.length && mode === 'live' ? <TrackerProgress items={activeSession.progress} /> : null}
 
             <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <MetricCard icon={Activity} label={mode === 'cache' ? 'Cached releases' : 'Releases found'} value={displayedResults.length.toLocaleString()} accent />
-              <MetricCard icon={Gauge} label="Responded" value={mode === 'cache' ? 'Cache' : `${completedCount}/${progressive.progress.length || selectedIndexers.length}`} />
+              <MetricCard icon={Gauge} label="Responded" value={mode === 'cache' ? 'Cache' : `${completedCount}/${activeSession?.progress.length || selectedIndexers.length}`} />
               <MetricCard icon={Waves} label="Elapsed" value={mode === 'cache' ? 'Instant' : formatDuration(elapsed)} />
               <MetricCard icon={ServerCog} label="Issues" value={mode === 'cache' ? '—' : String(failedCount)} warning={failedCount > 0} />
             </section>
@@ -409,10 +444,10 @@ function App() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h2 className="text-lg font-semibold tracking-tight">{mode === 'cache' ? 'Cached releases' : 'Search results'}</h2>
-                    {progressive.isSearching && mode === 'live' ? <Badge className="progress-shimmer border-primary/20 bg-primary/8 text-primary" variant="outline">Live</Badge> : null}
+                    {activeSession?.status === 'searching' && mode === 'live' ? <Badge className="progress-shimmer border-primary/20 bg-primary/8 text-primary" variant="outline">Live</Badge> : null}
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {mode === 'cache' ? 'Recently returned by Jackett across all searches.' : lastQuery ? <>Showing matches for <span className="font-medium text-foreground">“{lastQuery}”</span></> : 'Fresh results will stream in here.'}
+                    {mode === 'cache' ? 'Recently returned by Jackett across all searches.' : activeSession ? <>Showing matches for <span className="font-medium text-foreground">“{activeSession.query}”</span></> : 'Fresh results will stream in here.'}
                   </p>
                 </div>
                 {mode === 'cache' ? <Button variant="ghost" size="sm" onClick={focusReleaseSearch}>Back to live search</Button> : null}
@@ -420,7 +455,7 @@ function App() {
               {bootstrap.isPending || cache.isFetching ? (
                 <div className="space-y-3"><Skeleton className="h-10 w-80 max-w-full" /><Skeleton className="h-60 w-full" /></div>
               ) : (
-                <ResultsTable results={displayedResults} searching={progressive.isSearching && mode === 'live'} />
+                <ResultsTable results={displayedResults} searching={activeSession?.status === 'searching' && mode === 'live'} />
               )}
             </section>
           </main>

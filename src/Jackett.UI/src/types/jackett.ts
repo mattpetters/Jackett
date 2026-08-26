@@ -90,3 +90,17 @@ export interface SearchOptions {
   categories: string[]
   apiKey: string
 }
+
+export type SearchSessionStatus = 'searching' | 'complete' | 'cancelled'
+
+export interface SearchSession {
+  id: string
+  query: string
+  results: SearchResult[]
+  progress: IndexerProgress[]
+  status: SearchSessionStatus
+  startedAt: number
+  finishedAt: number | null
+  indexerCount: number
+  categoryCount: number
+}

@@ -4,6 +4,7 @@ import {
   Archive,
   CheckCircle2,
   Clock3,
+  LoaderCircle,
   Moon,
   Search,
   ServerCog,
@@ -15,16 +16,20 @@ import {
 
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import type { SearchSession } from '@/types/jackett'
 
 interface CommandMenuProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   recentSearches: string[]
+  sessions: SearchSession[]
+  activeSessionId: string | null
   selectedIndexerCount: number
   selectedCategoryCount: number
   isSearching: boolean
   theme: 'light' | 'dark'
   onSearch: (query: string) => void
+  onSelectSession: (id: string) => void
   onFocusSearch: () => void
   onShowCache: () => void
   onSelectAllIndexers: () => void
@@ -62,11 +67,14 @@ export function CommandMenu({
   open,
   onOpenChange,
   recentSearches,
+  sessions,
+  activeSessionId,
   selectedIndexerCount,
   selectedCategoryCount,
   isSearching,
   theme,
   onSearch,
+  onSelectSession,
   onFocusSearch,
   onShowCache,
   onSelectAllIndexers,
@@ -133,6 +141,35 @@ export function CommandMenu({
               </div>
               <Shortcut>↵</Shortcut>
             </Command.Item>
+          </Command.Group>
+        ) : null}
+
+        {sessions.length ? (
+          <Command.Group heading="Search sessions" className="command-group">
+            {sessions.map((session) => (
+              <Command.Item
+                key={session.id}
+                value={`session ${session.query} ${session.status}`}
+                keywords={[session.query, session.status, 'results', 'switch']}
+                onSelect={() => closeThen(() => onSelectSession(session.id))}
+                className={itemClassName}
+              >
+                <ItemIcon>
+                  {session.status === 'searching' ? (
+                    <LoaderCircle className="size-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className={cn('size-4', session.status === 'cancelled' && 'text-muted-foreground')} />
+                  )}
+                </ItemIcon>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{session.query}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {session.results.length.toLocaleString()} results · {session.status}
+                  </p>
+                </div>
+                {session.id === activeSessionId ? <Badge variant="secondary">Viewing</Badge> : null}
+              </Command.Item>
+            ))}
           </Command.Group>
         ) : null}
 
