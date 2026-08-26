@@ -9,6 +9,7 @@ RUN mkdir -p ../Jackett.Common/Content && npm run build
 
 FROM mcr.microsoft.com/dotnet/sdk:9.0-alpine AS app-build
 ARG TARGETARCH
+ARG JACKETT_VERSION=0.24.2467-modern.1
 WORKDIR /source
 COPY . .
 COPY --from=ui-build /source/src/Jackett.Common/Content/UI ./src/Jackett.Common/Content/UI
@@ -23,6 +24,7 @@ RUN case "$TARGETARCH" in \
       --configuration Release \
       --runtime "$runtime_id" \
       --self-contained true \
+      /p:Version="$JACKETT_VERSION" \
       --output /publish
 
 FROM lscr.io/linuxserver/jackett:latest
