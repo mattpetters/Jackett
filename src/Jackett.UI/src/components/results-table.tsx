@@ -7,6 +7,7 @@ import {
   Download,
   ExternalLink,
   Flame,
+  Info,
   Magnet,
 } from 'lucide-react'
 
@@ -22,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { MagnifyingGlassIcon } from '@/components/ui/icons/magnifying-glass'
+import { hasReportedSwarmStats } from '@/lib/swarm-stats'
 import {
   Tooltip,
   TooltipContent,
@@ -125,7 +127,19 @@ export function ResultsTable({ results, searching }: { results: SearchResult[]; 
       {
         accessorKey: 'Seeders',
         header: 'Seeds',
-        cell: ({ getValue }) => {
+        cell: ({ getValue, row }) => {
+          if (!hasReportedSwarmStats(row.original)) {
+            return (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex items-center gap-1 tabular-nums text-muted-foreground" aria-label="Seeder count not reported">
+                    — <Info className="size-3" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>This indexer does not report swarm stats.</TooltipContent>
+              </Tooltip>
+            )
+          }
           const seeds = Number(getValue() || 0)
           return <span className={seeds > 0 ? 'font-medium tabular-nums text-emerald-500' : 'tabular-nums text-muted-foreground'}>{seeds}</span>
         },

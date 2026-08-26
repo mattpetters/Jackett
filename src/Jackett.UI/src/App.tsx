@@ -6,7 +6,6 @@ import {
   ExternalLink,
   Gauge,
   Github,
-  Keyboard,
   Moon,
   Search,
   ServerCog,
@@ -15,6 +14,7 @@ import {
   Waves,
 } from 'lucide-react'
 
+import { CommandMenu } from '@/components/command-menu'
 import { ResultsTable } from '@/components/results-table'
 import { SearchFilters } from '@/components/search-filters'
 import { TrackerProgress } from '@/components/tracker-progress'
@@ -27,12 +27,14 @@ import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { getCachedResults, getConfiguredIndexers, getServerConfig, getUiPath } from '@/lib/api'
+import { addRecentSearch, parseRecentSearches } from '@/lib/recent-searches'
 import { cn } from '@/lib/utils'
 import { useProgressiveSearch } from '@/hooks/use-progressive-search'
 import type { Capability, SearchResult } from '@/types/jackett'
 
 const INDEXER_STORAGE_KEY = 'jackett:selected-indexers'
 const THEME_STORAGE_KEY = 'jackett:theme'
+const RECENT_SEARCH_STORAGE_KEY = 'jackett:recent-searches'
 
 function useElapsed(startedAt: number | null, finishedAt: number | null) {
   const [now, setNow] = useState(Date.now())
@@ -73,6 +75,10 @@ function App() {
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(new Set())
   const [mode, setMode] = useState<'live' | 'cache'>('live')
   const [validationMessage, setValidationMessage] = useState('')
+  const [commandMenuOpen, setCommandMenuOpen] = useState(false)
+  const [recentSearches, setRecentSearches] = useState(() =>
+    parseRecentSearches(localStorage.getItem(RECENT_SEARCH_STORAGE_KEY)),
+  )
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem(THEME_STORAGE_KEY)
     return saved === 'light' ? 'light' : 'dark'
@@ -111,8 +117,23 @@ function App() {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
+        setCommandMenuOpen((current) => !current)
+        return
+      }
+
+      const target = event.target
+      const isEditable = target instanceof HTMLElement && (
+        target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+      )
+
+      if (event.key === '/' && !event.metaKey && !event.ctrlKey && !event.altKey && !isEditable) {
+        event.preventDefault()
+        setMode('live')
         searchInput.current?.focus()
-        searchInput.current?.select()
+      }
+
+      if (event.key === 'Escape' && target === searchInput.current) {
+        searchInput.current?.blur()
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -151,6 +172,11 @@ function App() {
     setValidationMessage('')
     setMode('live')
     setLastQuery(cleanQuery)
+    setRecentSearches((current) => {
+      const next = addRecentSearch(current, cleanQuery)
+      localStorage.setItem(RECENT_SEARCH_STORAGE_KEY, JSON.stringify(next))
+      return next
+    })
     const url = new URL(window.location.href)
     url.searchParams.set('q', cleanQuery)
     window.history.replaceState({}, '', url)
@@ -191,6 +217,20 @@ function App() {
     runSearch(query)
   }
 
+  function focusReleaseSearch() {
+    setMode('live')
+    window.requestAnimationFrame(() => {
+      searchInput.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      searchInput.current?.focus()
+      searchInput.current?.select()
+    })
+  }
+
+  function clearRecentSearches() {
+    localStorage.removeItem(RECENT_SEARCH_STORAGE_KEY)
+    setRecentSearches([])
+  }
+
   if (bootstrap.isError) {
     return (
       <main className="flex min-h-screen items-center justify-center p-6">
@@ -208,6 +248,26 @@ function App() {
 
   return (
     <TooltipProvider delayDuration={350}>
+      <CommandMenu
+        open={commandMenuOpen}
+        onOpenChange={setCommandMenuOpen}
+        recentSearches={recentSearches}
+        selectedIndexerCount={selectedIndexers.length}
+        selectedCategoryCount={selectedCategoryIds.size}
+        isSearching={progressive.isSearching}
+        theme={theme}
+        onSearch={(value) => {
+          setQuery(value)
+          runSearch(value)
+        }}
+        onFocusSearch={focusReleaseSearch}
+        onShowCache={() => void showCache()}
+        onSelectAllIndexers={() => setSelectedIndexerIds(new Set(indexers.map((indexer) => indexer.id)))}
+        onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+        onOpenAdmin={() => window.location.assign(getUiPath('Legacy'))}
+        onCancelSearch={progressive.cancel}
+        onClearRecentSearches={clearRecentSearches}
+      />
       <div className="min-h-screen lg:grid lg:grid-cols-[232px_minmax(0,1fr)]">
         <aside className="sticky top-0 hidden h-screen flex-col border-r border-sidebar-border bg-sidebar/75 px-3 py-4 backdrop-blur-xl lg:flex">
           <a href={getUiPath('Dashboard')} className="flex items-center gap-3 rounded-xl px-3 py-2">
@@ -221,7 +281,7 @@ function App() {
           </a>
 
           <nav className="mt-7 space-y-1">
-            <button type="button" onClick={() => { setMode('live'); searchInput.current?.focus() }} className={cn('flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors', mode === 'live' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent hover:text-foreground')}>
+            <button type="button" onClick={focusReleaseSearch} className={cn('flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors', mode === 'live' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent hover:text-foreground')}>
               <Search className="size-4" /> Search
             </button>
             <button type="button" onClick={() => void showCache()} className={cn('flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors', mode === 'cache' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent hover:text-foreground')}>
@@ -257,9 +317,13 @@ function App() {
               <div className="flex items-center gap-2">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="size-9" onClick={() => searchInput.current?.focus()} aria-label="Focus search"><Keyboard /></Button>
+                    <Button variant="outline" size="sm" className="h-9 gap-2 bg-background/45 px-2.5" onClick={() => setCommandMenuOpen(true)} aria-label="Open command menu">
+                      <Search className="size-3.5" />
+                      <span className="hidden sm:inline">Commands</span>
+                      <kbd className="rounded border bg-muted/60 px-1 font-sans text-[10px] text-muted-foreground">⌘K</kbd>
+                    </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Focus search · ⌘K</TooltipContent>
+                  <TooltipContent>Open command menu · ⌘K</TooltipContent>
                 </Tooltip>
                 <Button variant="ghost" size="icon" className="size-9 lg:hidden" onClick={() => void showCache()} aria-label="Cached releases">
                   <Archive />
@@ -300,11 +364,15 @@ function App() {
                       data-testid="search-input"
                       value={query}
                       onChange={(event) => setQuery(event.target.value)}
+                      onFocus={() => setMode('live')}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Escape') event.currentTarget.blur()
+                      }}
                       placeholder="Search releases across every indexer…"
                       className="h-13 border-0 bg-transparent pl-12 pr-14 text-base shadow-none placeholder:text-muted-foreground/65 focus-visible:ring-0 sm:text-lg"
-                      aria-keyshortcuts="Meta+K Control+K"
+                      aria-keyshortcuts="/"
                     />
-                    <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border bg-muted/60 px-1.5 py-0.5 font-sans text-[10px] text-muted-foreground sm:block">⌘ K</kbd>
+                    <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border bg-muted/60 px-2 py-0.5 font-sans text-[11px] text-muted-foreground sm:block">/</kbd>
                   </div>
                   <Separator orientation="vertical" className="hidden h-7 md:block" />
                   <div className="flex items-center gap-2 px-1 pb-1 md:pb-0">
@@ -347,7 +415,7 @@ function App() {
                     {mode === 'cache' ? 'Recently returned by Jackett across all searches.' : lastQuery ? <>Showing matches for <span className="font-medium text-foreground">“{lastQuery}”</span></> : 'Fresh results will stream in here.'}
                   </p>
                 </div>
-                {mode === 'cache' ? <Button variant="ghost" size="sm" onClick={() => { setMode('live'); searchInput.current?.focus() }}>Back to live search</Button> : null}
+                {mode === 'cache' ? <Button variant="ghost" size="sm" onClick={focusReleaseSearch}>Back to live search</Button> : null}
               </div>
               {bootstrap.isPending || cache.isFetching ? (
                 <div className="space-y-3"><Skeleton className="h-10 w-80 max-w-full" /><Skeleton className="h-60 w-full" /></div>

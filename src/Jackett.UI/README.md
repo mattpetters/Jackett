@@ -21,6 +21,12 @@ npm run build
 
 The production bundle is written to `../Jackett.Common/Content/UI` and included by the .NET project.
 
+## Keyboard workflow
+
+- `Cmd/Ctrl-K` opens the global command menu for searches, recent queries, navigation, and app actions.
+- `/` focuses and selects the main release search from anywhere outside an editable field.
+- Arrow keys move through command-menu options, `Enter` runs one, and `Escape` closes the menu or blurs the main search.
+
 ## Component sources
 
 - The results table is adapted from [ShadTable](https://www.shad-table.dev/), built on TanStack Table.
