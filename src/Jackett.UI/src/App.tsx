@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 
 import { CommandMenu } from '@/components/command-menu'
+import { IndexerIssues } from '@/components/indexer-issues'
 import { ResultsTable } from '@/components/results-table'
 import { SearchFilters } from '@/components/search-filters'
 import { SearchSessions } from '@/components/search-sessions'
@@ -77,6 +78,8 @@ function App() {
   const [validationMessage, setValidationMessage] = useState('')
   const [commandMenuOpen, setCommandMenuOpen] = useState(false)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+  const [issuesOpen, setIssuesOpen] = useState(false)
+  const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null)
   const [recentSearches, setRecentSearches] = useState(() =>
     parseRecentSearches(localStorage.getItem(RECENT_SEARCH_STORAGE_KEY)),
   )
@@ -218,7 +221,8 @@ function App() {
   }, [runningSessionCount])
 
   const elapsed = useElapsed(activeSession?.startedAt || null, activeSession?.finishedAt || null)
-  const failedCount = activeSession?.progress.filter((item) => item.state === 'failed' || item.state === 'timed-out').length || 0
+  const issues = activeSession?.progress.filter((item) => item.state === 'failed' || item.state === 'timed-out') || []
+  const failedCount = issues.length
   const completedCount = activeSession?.progress.filter((item) => item.state === 'complete').length || 0
   const displayedResults: SearchResult[] = mode === 'cache' ? cache.data || [] : activeSession?.results || []
 
@@ -244,6 +248,38 @@ function App() {
   function clearRecentSearches() {
     localStorage.removeItem(RECENT_SEARCH_STORAGE_KEY)
     setRecentSearches([])
+  }
+
+  function openIssue(issueId?: string) {
+    const nextIssueId = issueId || issues[0]?.id
+    if (!nextIssueId) return
+    setSelectedIssueId(nextIssueId)
+    setIssuesOpen(true)
+  }
+
+  function retryIssueIndexer(indexerId: string) {
+    if (!config || !activeSession) return
+    const indexer = indexers.find((candidate) => candidate.id === indexerId)
+    if (!indexer) return
+    const sessionId = progressive.search({
+      query: activeSession.query,
+      indexers: [indexer],
+      categories: activeSession.categoryIds,
+      apiKey: config.api_key,
+    })
+    setActiveSessionId(sessionId)
+    setMode('live')
+    setIssuesOpen(false)
+  }
+
+  function handleIndexerRemoved(indexerId: string) {
+    setSelectedIndexerIds((current) => {
+      const next = new Set(current)
+      next.delete(indexerId)
+      return next
+    })
+    setSelectedIssueId(issues.find((issue) => issue.id !== indexerId)?.id || null)
+    void bootstrap.refetch()
   }
 
   if (bootstrap.isError) {
@@ -272,6 +308,7 @@ function App() {
         selectedIndexerCount={selectedIndexers.length}
         selectedCategoryCount={selectedCategoryIds.size}
         isSearching={activeSession?.status === 'searching'}
+        issueCount={failedCount}
         theme={theme}
         onSearch={(value) => {
           setQuery(value)
@@ -289,7 +326,19 @@ function App() {
         onCancelSearch={() => {
           if (activeSession) progressive.cancel(activeSession.id)
         }}
+        onOpenIssues={() => openIssue()}
         onClearRecentSearches={clearRecentSearches}
+      />
+      <IndexerIssues
+        open={issuesOpen}
+        onOpenChange={setIssuesOpen}
+        issues={issues}
+        selectedIssueId={selectedIssueId}
+        onSelectedIssueIdChange={setSelectedIssueId}
+        indexers={indexers}
+        searchQuery={activeSession?.query}
+        onRetrySearch={retryIssueIndexer}
+        onRemoved={handleIndexerRemoved}
       />
       <div className="min-h-screen lg:grid lg:grid-cols-[232px_minmax(0,1fr)]">
         <aside className="sticky top-0 hidden h-screen flex-col border-r border-sidebar-border bg-sidebar/75 px-3 py-4 backdrop-blur-xl lg:flex">
@@ -430,13 +479,13 @@ function App() {
               onClearSettled={progressive.clearSettled}
             />
 
-            {activeSession?.progress.length && mode === 'live' ? <TrackerProgress items={activeSession.progress} /> : null}
+            {activeSession?.progress.length && mode === 'live' ? <TrackerProgress items={activeSession.progress} onIssueClick={(issue) => openIssue(issue.id)} /> : null}
 
             <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <MetricCard icon={Activity} label={mode === 'cache' ? 'Cached releases' : 'Releases found'} value={displayedResults.length.toLocaleString()} accent />
               <MetricCard icon={Gauge} label="Responded" value={mode === 'cache' ? 'Cache' : `${completedCount}/${activeSession?.progress.length || selectedIndexers.length}`} />
               <MetricCard icon={Waves} label="Elapsed" value={mode === 'cache' ? 'Instant' : formatDuration(elapsed)} />
-              <MetricCard icon={ServerCog} label="Issues" value={mode === 'cache' ? '—' : String(failedCount)} warning={failedCount > 0} />
+              <MetricCard icon={ServerCog} label="Issues" value={mode === 'cache' ? '—' : String(failedCount)} warning={failedCount > 0} onClick={mode === 'live' && failedCount ? () => openIssue() : undefined} />
             </section>
 
             <section data-testid="results-workspace" className="glass-panel rounded-2xl p-3 sm:p-5">
@@ -471,15 +520,17 @@ function MetricCard({
   value,
   accent = false,
   warning = false,
+  onClick,
 }: {
   icon: typeof Activity
   label: string
   value: string
   accent?: boolean
   warning?: boolean
+  onClick?: () => void
 }) {
-  return (
-    <Card className="glass-panel gap-0 overflow-hidden py-0">
+  const card = (
+    <Card className={cn('glass-panel h-full gap-0 overflow-hidden py-0 transition-colors', onClick && 'hover:border-amber-500/35 hover:bg-amber-500/6')}>
       <CardContent className="flex items-center gap-3 p-4 sm:p-5">
         <div className={cn('hidden size-9 shrink-0 items-center justify-center rounded-xl bg-muted/70 text-muted-foreground sm:flex', accent && 'bg-primary/10 text-primary', warning && 'bg-amber-500/10 text-amber-500')}><Icon className="size-4" /></div>
         <div className="min-w-0">
@@ -489,6 +540,12 @@ function MetricCard({
       </CardContent>
     </Card>
   )
+
+  return onClick ? (
+    <button type="button" onClick={onClick} className="rounded-2xl text-left outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`View ${value} ${label.toLocaleLowerCase()}`}>
+      {card}
+    </button>
+  ) : card
 }
 
 export default App

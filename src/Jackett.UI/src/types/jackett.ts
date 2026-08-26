@@ -103,4 +103,22 @@ export interface SearchSession {
   finishedAt: number | null
   indexerCount: number
   categoryCount: number
+  categoryIds: string[]
+}
+
+export interface IndexerConfigItem {
+  id: string
+  type: 'inputstring' | 'password' | 'inputbool' | 'inputcheckbox' | 'inputselect' | 'inputtags' | 'displayinfo' | 'displayimage' | 'hiddendata' | string
+  name: string
+  value?: string | boolean
+  values?: string[]
+  options?: Record<string, string>
+  separator?: string
+  pattern?: string
+}
+
+export interface IndexerConfigUpdate {
+  id: string
+  value?: string | boolean
+  values?: string[]
 }

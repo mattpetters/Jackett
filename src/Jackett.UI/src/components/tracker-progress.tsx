@@ -13,7 +13,7 @@ const stateIcon = {
   cancelled: X,
 }
 
-export function TrackerProgress({ items }: { items: IndexerProgress[] }) {
+export function TrackerProgress({ items, onIssueClick }: { items: IndexerProgress[]; onIssueClick?: (item: IndexerProgress) => void }) {
   if (!items.length) return null
   const settled = items.filter((item) => !['queued', 'searching'].includes(item.state)).length
   const completed = items.filter((item) => item.state === 'complete').length
@@ -31,22 +31,27 @@ export function TrackerProgress({ items }: { items: IndexerProgress[] }) {
       <div className="flex gap-2 overflow-x-auto px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {items.map((item) => {
           const Icon = stateIcon[item.state]
-          return (
-            <div
-              key={item.id}
-              title={item.error}
-              className={cn(
-                'flex shrink-0 items-center gap-2 rounded-lg border bg-background/45 px-2.5 py-1.5 text-xs transition-colors',
-                item.state === 'searching' && 'border-primary/35 bg-primary/8 text-primary',
-                item.state === 'complete' && 'border-emerald-500/20 text-emerald-500',
-                (item.state === 'failed' || item.state === 'timed-out') && 'border-amber-500/20 text-amber-500',
-                item.state === 'cancelled' && 'opacity-50',
-              )}
-            >
+          const hasIssue = item.state === 'failed' || item.state === 'timed-out'
+          const content = (
+            <>
               <Icon className={cn('size-3.5', item.state === 'searching' && 'animate-spin')} />
               <span className="max-w-32 truncate text-foreground">{item.name}</span>
               {item.state === 'complete' ? <span className="tabular-nums">{item.resultCount}</span> : null}
-            </div>
+            </>
+          )
+          const className = cn(
+            'flex shrink-0 items-center gap-2 rounded-lg border bg-background/45 px-2.5 py-1.5 text-xs transition-colors',
+            item.state === 'searching' && 'border-primary/35 bg-primary/8 text-primary',
+            item.state === 'complete' && 'border-emerald-500/20 text-emerald-500',
+            hasIssue && 'border-amber-500/20 text-amber-500 hover:border-amber-500/40 hover:bg-amber-500/10',
+            item.state === 'cancelled' && 'opacity-50',
+          )
+          return hasIssue && onIssueClick ? (
+            <button key={item.id} type="button" title={item.error} className={className} onClick={() => onIssueClick(item)}>
+              {content}
+            </button>
+          ) : (
+            <div key={item.id} title={item.error} className={className}>{content}</div>
           )
         })}
       </div>

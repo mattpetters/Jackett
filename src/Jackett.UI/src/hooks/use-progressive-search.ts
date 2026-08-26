@@ -163,6 +163,7 @@ export function useProgressiveSearch() {
         finishedAt: null,
         indexerCount: indexers.length,
         categoryCount: categories.length,
+        categoryIds: [...categories],
       }
       setSessions((current) => [session, ...current])
 

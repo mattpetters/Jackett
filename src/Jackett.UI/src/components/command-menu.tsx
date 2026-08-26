@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Command } from 'cmdk'
 import {
+  AlertTriangle,
   Archive,
   CheckCircle2,
   Clock3,
@@ -27,6 +28,7 @@ interface CommandMenuProps {
   selectedIndexerCount: number
   selectedCategoryCount: number
   isSearching: boolean
+  issueCount: number
   theme: 'light' | 'dark'
   onSearch: (query: string) => void
   onSelectSession: (id: string) => void
@@ -36,6 +38,7 @@ interface CommandMenuProps {
   onToggleTheme: () => void
   onOpenAdmin: () => void
   onCancelSearch: () => void
+  onOpenIssues: () => void
   onClearRecentSearches: () => void
 }
 
@@ -72,6 +75,7 @@ export function CommandMenu({
   selectedIndexerCount,
   selectedCategoryCount,
   isSearching,
+  issueCount,
   theme,
   onSearch,
   onSelectSession,
@@ -81,6 +85,7 @@ export function CommandMenu({
   onToggleTheme,
   onOpenAdmin,
   onCancelSearch,
+  onOpenIssues,
   onClearRecentSearches,
 }: CommandMenuProps) {
   const [search, setSearch] = useState('')
@@ -192,6 +197,18 @@ export function CommandMenu({
         ) : null}
 
         <Command.Group heading="Navigate and act" className="command-group">
+          {issueCount ? (
+            <Command.Item
+              value="investigate indexer issues"
+              keywords={['errors', 'failed', 'trackers', 'fix', 'diagnostics']}
+              onSelect={() => closeThen(onOpenIssues)}
+              className={itemClassName}
+            >
+              <ItemIcon><AlertTriangle className="size-4 text-amber-500" /></ItemIcon>
+              <span className="flex-1">Investigate indexer issues</span>
+              <Badge variant="outline" className="border-amber-500/25 bg-amber-500/8 text-amber-500">{issueCount}</Badge>
+            </Command.Item>
+          ) : null}
           <Command.Item
             value="focus release search"
             keywords={['find', 'torrent', 'query', 'slash']}

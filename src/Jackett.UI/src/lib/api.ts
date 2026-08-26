@@ -1,5 +1,7 @@
 import type {
   JackettIndexer,
+  IndexerConfigItem,
+  IndexerConfigUpdate,
   ManualSearchResponse,
   SearchResult,
   ServerConfig,
@@ -30,6 +32,31 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   return response.json() as Promise<T>
 }
 
+async function mutate(url: string, method: 'POST' | 'DELETE', body?: unknown) {
+  const response = await fetch(url, {
+    method,
+    credentials: 'same-origin',
+    headers: {
+      Accept: 'application/json',
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    try {
+      const parsed = JSON.parse(text) as { error?: string; message?: string }
+      throw new Error(parsed.error || parsed.message || `${response.status} ${response.statusText}`)
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        throw new Error(text || `${response.status} ${response.statusText}`)
+      }
+      throw error
+    }
+  }
+}
+
 export function getUiPath(action: 'Dashboard' | 'Legacy' | 'Logout') {
   return `${getBasePath()}/UI/${action}`
 }
@@ -44,6 +71,29 @@ export async function getConfiguredIndexers(signal?: AbortSignal) {
 
 export async function getCachedResults(signal?: AbortSignal) {
   return getJson<SearchResult[]>(`${getApiRoot()}/indexers/cache`, signal)
+}
+
+export async function getIndexerConfig(indexerId: string, signal?: AbortSignal) {
+  return getJson<IndexerConfigItem[]>(
+    `${getApiRoot()}/indexers/${encodeURIComponent(indexerId)}/config`,
+    signal,
+  )
+}
+
+export async function updateIndexerConfig(indexerId: string, config: IndexerConfigUpdate[]) {
+  return mutate(
+    `${getApiRoot()}/indexers/${encodeURIComponent(indexerId)}/config`,
+    'POST',
+    config,
+  )
+}
+
+export async function testIndexer(indexerId: string) {
+  return mutate(`${getApiRoot()}/indexers/${encodeURIComponent(indexerId)}/test`, 'POST')
+}
+
+export async function deleteIndexer(indexerId: string) {
+  return mutate(`${getApiRoot()}/indexers/${encodeURIComponent(indexerId)}`, 'DELETE')
 }
 
 function combineSignals(parent: AbortSignal, timeoutMs: number) {

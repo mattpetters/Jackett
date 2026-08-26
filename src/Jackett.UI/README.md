@@ -29,6 +29,8 @@ The production bundle is written to `../Jackett.Common/Content/UI` and included 
 
 Searches run as independent in-memory sessions. Starting a new query does not cancel older work; the session rail and command menu can switch between them, cancel one, or remove settled results. All sessions share an eight-request concurrency budget so parallel searches remain responsive without overwhelming Jackett or its indexers.
 
+Failed and timed-out indexers open an issue inspector from the tracker pulse, Issues metric, or command menu. It provides a categorized diagnosis, raw error details, connection testing, single-indexer retry, schema-driven configuration editing, and confirmed removal using Jackett's existing management APIs.
+
 ## Component sources
 
 - The results table is adapted from [ShadTable](https://www.shad-table.dev/), built on TanStack Table.

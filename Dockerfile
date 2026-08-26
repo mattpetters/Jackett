@@ -9,7 +9,7 @@ RUN mkdir -p ../Jackett.Common/Content && npm run build
 
 FROM mcr.microsoft.com/dotnet/sdk:9.0-alpine AS app-build
 ARG TARGETARCH
-ARG JACKETT_VERSION=0.24.2467-modern.3
+ARG JACKETT_VERSION=0.24.2467-modern.4
 WORKDIR /source
 COPY . .
 COPY --from=ui-build /source/src/Jackett.Common/Content/UI ./src/Jackett.Common/Content/UI
