@@ -6,6 +6,7 @@ using Jackett.Common.Indexers.Definitions.Abstract;
 using Jackett.Common.Models;
 using Jackett.Common.Services.Interfaces;
 using Jackett.Common.Utils.Clients;
+using Newtonsoft.Json.Linq;
 using NLog;
 using static Jackett.Common.Models.IndexerConfig.ConfigurationData;
 
@@ -54,6 +55,44 @@ namespace Jackett.Common.Indexers.Definitions
         protected override Uri GetDownloadUrl(int torrentId, bool canUseToken)
         {
             return new Uri($"{SiteLink}ajax.php?action=download{(useTokens && canUseToken ? "&usetoken=1" : "")}&id={torrentId}");
+        }
+
+        protected override bool ReleaseInfoPostParse(ReleaseInfo release, JObject torrent, JObject result)
+        {
+            // Content categories are authoritative: a PDF can be a book, comic, or magazine.
+            // Older grouped responses omit them, so retain the format fallback below.
+            var category = (string)torrent["category"] ?? (string)result["category"];
+            if (!string.IsNullOrWhiteSpace(category))
+            {
+                var mappedCategories = MapTrackerCatDescToNewznab(category);
+                if (mappedCategories.Count > 0)
+                {
+                    release.Category = mappedCategories;
+                    return true;
+                }
+            }
+
+            switch ((string)torrent["format"])
+            {
+                case "PDF":
+                case "MOBI":
+                case "EPUB":
+                case "AZW3":
+                    release.Category = new List<int> { TorznabCatType.BooksEBook.ID };
+                    break;
+                case "CBR":
+                case "CBZ":
+                    release.Category = new List<int> { TorznabCatType.BooksComics.ID };
+                    break;
+                case "MP3":
+                case "M4B":
+                    release.Category = new List<int> { TorznabCatType.AudioAudiobook.ID };
+                    break;
+                default:
+                    break;
+            }
+
+            return true;
         }
 
         protected override async Task<IEnumerable<ReleaseInfo>> PerformQuery(TorznabQuery query)
