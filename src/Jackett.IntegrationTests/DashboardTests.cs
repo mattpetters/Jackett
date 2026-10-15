@@ -72,7 +72,7 @@ namespace Jackett.IntegrationTests
         [TestInitialize]
         public void LoadDashboard()
         {
-            var url = "http://localhost:9117/UI/Dashboard";
+            var url = "http://localhost:9117/UI/Legacy";
             Console.WriteLine($"Url for test: {url}");
             _webDriver.Navigate().GoToUrl(url);
 

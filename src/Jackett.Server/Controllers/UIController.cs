@@ -87,6 +87,12 @@ namespace Jackett.Server.Controllers
                 return Redirect("Logout");
             }
 
+            return new PhysicalFileResult(_config.GetContentFolder() + "/UI/index.html", "text/html");
+        }
+
+        [HttpGet]
+        public IActionResult Legacy()
+        {
             return new PhysicalFileResult(_config.GetContentFolder() + "/index.html", "text/html");
         }
 
