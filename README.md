@@ -118,7 +118,6 @@ Prior versions of Jackett are no longer supported.
  * Mac Torrents Download
  * Magnet Cat
  * MagnetDownload
- * Magnetz
  * MegaPeer
  * MejorTorrent
  * Mikan
@@ -209,6 +208,7 @@ Prior versions of Jackett are no longer supported.
  * Kinozal
  * LostFilm.tv
  * Magnetico (Local DHT) [[site](https://github.com/boramalper/magnetico)]
+ * Magnetz
  * Marine Tracker
  * Mazepa
  * Metal Tracker
@@ -254,7 +254,6 @@ Prior versions of Jackett are no longer supported.
  * 3D Torrents (3DT)
  * 3D Vault
  * 4thD (4th Dimension) [![(invite needed)][inviteneeded]](#)
- * 52movie
  * 52PT
  * 720pier
  * Abnormal (ABN)
@@ -294,6 +293,7 @@ Prior versions of Jackett are no longer supported.
  * BeyondHD (BHD)
  * Bibliotik [![(invite needed)][inviteneeded]](#)
  * BigCore
+ * BinaryBay
  * Bit-Bázis
  * BIT-HDTV
  * BitAgent
@@ -304,7 +304,6 @@ Prior versions of Jackett are no longer supported.
  * BitTorrentFiles
  * BiTTuRK
  * BJ-Share (BJ) [![(invite needed)][inviteneeded]](#)
- * BlueBird
  * BlueTorrents
  * BlurayTracker
  * Blutopia (BLU)
@@ -527,6 +526,7 @@ Prior versions of Jackett are no longer supported.
  * Podzemlje
  * Polish Torrent (PTT)
  * PolishTracker [![(invite needed)][inviteneeded]](#)
+ * Pornorip
  * Portugas
  * Pretome
  * PrivateHD (PHD)
@@ -539,13 +539,11 @@ Prior versions of Jackett are no longer supported.
  * PTFans
  * PTFiles (PTF)
  * PThome [![(invite needed)][inviteneeded]](#)
- * PTLAO
  * PTLGS [![(invite needed)][inviteneeded]](#)
  * PTSBAO (烧包) [![(invite needed)][inviteneeded]](#)
  * PTSKIT
  * PTTey [![(invite needed)][inviteneeded]](#)
  * PTtime
- * PTYING (樱花)
  * PTzone
  * Punk's Horror Tracker
  * PuntoTorrent [![(invite needed)][inviteneeded]](#)
@@ -569,6 +567,7 @@ Prior versions of Jackett are no longer supported.
  * Romanian Metal Torrents (RMT)
  * Rousi.pro
  * SAMARITANO
+ * SAPIbr (Toca Share)
  * SBPT
  * SceneHD [![(invite needed)][inviteneeded]](#)
  * SceneRush [![(invite needed)][inviteneeded]](#)
@@ -626,7 +625,6 @@ Prior versions of Jackett are no longer supported.
  * TJUPT (北洋园PT)
  * TLFBits [![(invite needed)][inviteneeded]](#)
  * TmGHuB (TH) [![(invite needed)][inviteneeded]](#)
- * Toca Share
  * Tormac
  * Tornado
  * Torrent Heaven (Dutch)
